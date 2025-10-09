@@ -1,5 +1,5 @@
 /**
- * For more details on how to configure Wrangler, refer to:
+ * 有关如何配置 Wrangler 的更多详细信息，请参考：
  * https://developers.cloudflare.com/workers/wrangler/configuration/
  */
 {
@@ -16,7 +16,7 @@
 		}
 	],
 	"assets": {
-		// The path to the directory containing the `index.html` file to be served at `/`
+		// 包含要在 `/` 处提供的 `index.html` 文件的目录路径
 		"directory": "./public"
 	},
 	"durable_objects": {
@@ -31,32 +31,32 @@
 		"enabled": true
 	}
 	/**
-	 * Smart Placement
-	 * Docs: https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement
+	 * 智能放置
+	 * 文档：https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement
 	 */
 	// "placement": { "mode": "smart" }
 	/**
-	 * Bindings
-	 * Bindings allow your Worker to interact with resources on the Cloudflare Developer Platform, including
-	 * databases, object storage, AI inference, real-time communication and more.
+	 * 绑定
+	 * 绑定允许你的 Worker 与 Cloudflare 开发者平台上的资源交互，包括
+	 * 数据库、对象存储、AI 推理、实时通信等。
 	 * https://developers.cloudflare.com/workers/runtime-apis/bindings/
 	 */
 	/**
-	 * Environment Variables
+	 * 环境变量
 	 * https://developers.cloudflare.com/workers/wrangler/configuration/#environment-variables
 	 */
 	// "vars": { "MY_VARIABLE": "production_value" }
 	/**
-	 * Note: Use secrets to store sensitive data.
+	 * 注意：使用机密来存储敏感数据。
 	 * https://developers.cloudflare.com/workers/configuration/secrets/
 	 */
 	/**
-	 * Static Assets
+	 * 静态资源
 	 * https://developers.cloudflare.com/workers/static-assets/binding/
 	 */
 	// "assets": { "directory": "./public/", "binding": "ASSETS" }
 	/**
-	 * Service Bindings (communicate between multiple Workers)
+	 * 服务绑定（多个 Worker 之间的通信）
 	 * https://developers.cloudflare.com/workers/wrangler/configuration/#service-bindings
 	 */
 	// "services": [{ "binding": "MY_SERVICE", "service": "my-service" }]

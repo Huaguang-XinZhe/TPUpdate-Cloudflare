@@ -1,38 +1,37 @@
-import { DurableObject } from "cloudflare:workers";
+import { DurableObject } from 'cloudflare:workers';
 
 /**
- * Welcome to Cloudflare Workers! This is your first Durable Objects application.
+ * 欢迎使用 Cloudflare Workers！这是你的第一个 Durable Objects 应用程序。
  *
- * - Run `npm run dev` in your terminal to start a development server
- * - Open a browser tab at http://localhost:8787/ to see your Durable Object in action
- * - Run `npm run deploy` to publish your application
+ * - 在终端中运行 `npm run dev` 启动开发服务器
+ * - 在浏览器中打开 http://localhost:8787/ 查看你的 Durable Object 运行情况
+ * - 运行 `npm run deploy` 发布你的应用程序
  *
- * Bind resources to your worker in `wrangler.jsonc`. After adding bindings, a type definition for the
- * `Env` object can be regenerated with `npm run cf-typegen`.
+ * 在 `wrangler.jsonc` 中绑定资源到你的 worker。添加绑定后，可以使用 `npm run cf-typegen`
+ * 重新生成 `Env` 对象的类型定义。
  *
- * Learn more at https://developers.cloudflare.com/durable-objects
+ * 了解更多信息请访问 https://developers.cloudflare.com/durable-objects
  */
 
-
-/** A Durable Object's behavior is defined in an exported Javascript class */
+/** Durable Object 的行为在导出的 Javascript 类中定义 */
 export class MyDurableObject extends DurableObject {
 	/**
-	 * The constructor is invoked once upon creation of the Durable Object, i.e. the first call to
-	 * 	`DurableObjectStub::get` for a given identifier (no-op constructors can be omitted)
+	 * 构造函数在创建 Durable Object 时调用一次，即对给定标识符首次调用
+	 * 	`DurableObjectStub::get` 时（无操作构造函数可以省略）
 	 *
-	 * @param ctx - The interface for interacting with Durable Object state
-	 * @param env - The interface to reference bindings declared in wrangler.jsonc
+	 * @param ctx - 与 Durable Object 状态交互的接口
+	 * @param env - 引用在 wrangler.jsonc 中声明的绑定的接口
 	 */
 	constructor(ctx: DurableObjectState, env: Env) {
 		super(ctx, env);
 	}
 
 	/**
-	 * The Durable Object exposes an RPC method sayHello which will be invoked when when a Durable
-	 *  Object instance receives a request from a Worker via the same method invocation on the stub
+	 * Durable Object 暴露一个 RPC 方法 sayHello，当 Durable Object 实例
+	 * 通过 stub 上的相同方法调用从 Worker 接收请求时将被调用
 	 *
-	 * @param name - The name provided to a Durable Object instance from a Worker
-	 * @returns The greeting to be sent back to the Worker
+	 * @param name - 从 Worker 提供给 Durable Object 实例的名称
+	 * @returns 要发送回 Worker 的问候语
 	 */
 	async sayHello(name: string): Promise<string> {
 		return `Hello, ${name}!`;
@@ -41,24 +40,23 @@ export class MyDurableObject extends DurableObject {
 
 export default {
 	/**
-	 * This is the standard fetch handler for a Cloudflare Worker
+	 * 这是 Cloudflare Worker 的标准 fetch 处理程序
 	 *
-	 * @param request - The request submitted to the Worker from the client
-	 * @param env - The interface to reference bindings declared in wrangler.jsonc
-	 * @param ctx - The execution context of the Worker
-	 * @returns The response to be sent back to the client
+	 * @param request - 客户端提交给 Worker 的请求
+	 * @param env - 引用在 wrangler.jsonc 中声明的绑定的接口
+	 * @param ctx - Worker 的执行上下文
+	 * @returns 要发送回客户端的响应
 	 */
 	async fetch(request, env, ctx): Promise<Response> {
-		// Create a stub to open a communication channel with the Durable Object
-		// instance named "foo".
+		// 创建一个 stub 来打开与名为 "foo" 的 Durable Object 实例的通信通道。
 		//
-		// Requests from all Workers to the Durable Object instance named "foo"
-		// will go to a single remote Durable Object instance.
-		const stub = env.MY_DURABLE_OBJECT.getByName("foo");
+		// 所有 Worker 对名为 "foo" 的 Durable Object 实例的请求
+		// 都将发送到单个远程 Durable Object 实例。
+		const stub = env.MY_DURABLE_OBJECT.getByName('foo');
 
-		// Call the `sayHello()` RPC method on the stub to invoke the method on
-		// the remote Durable Object instance.
-		const greeting = await stub.sayHello("world");
+		// 在 stub 上调用 `sayHello()` RPC 方法来调用
+		// 远程 Durable Object 实例上的方法。
+		const greeting = await stub.sayHello('world');
 
 		return new Response(greeting);
 	},
