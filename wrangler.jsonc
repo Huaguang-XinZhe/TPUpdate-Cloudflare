@@ -4,28 +4,12 @@
  */
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "TPUpdate-Cloudflare",
+	"name": "tpupdate-cf", // 不能用大写！
 	"main": "src/index.ts",
 	"compatibility_date": "2025-10-08",
-	"migrations": [
-		{
-			"new_sqlite_classes": [
-				"MyDurableObject"
-			],
-			"tag": "v1"
-		}
-	],
 	"assets": {
 		// 包含要在 `/` 处提供的 `index.html` 文件的目录路径
 		"directory": "./public"
-	},
-	"durable_objects": {
-		"bindings": [
-			{
-				"class_name": "MyDurableObject",
-				"name": "MY_DURABLE_OBJECT"
-			}
-		]
 	},
 	"observability": {
 		"enabled": true
