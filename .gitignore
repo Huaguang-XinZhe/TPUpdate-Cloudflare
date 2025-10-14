@@ -165,3 +165,6 @@ dist
 .env*
 !.env.example
 .wrangler/
+
+# 暂时忽略 public 目录
+public/

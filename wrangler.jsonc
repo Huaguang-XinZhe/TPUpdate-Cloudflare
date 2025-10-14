@@ -7,13 +7,13 @@
 	"name": "tpupdate-cf", // 不能用大写！
 	"main": "src/index.ts",
 	"compatibility_date": "2025-10-08",
-	"assets": {
-		// 包含要在 `/` 处提供的 `index.html` 文件的目录路径
-		"directory": "./public"
-	},
+	// "assets": {
+	// 	// 包含要在 `/` 处提供的 `index.html` 文件的目录路径
+	// 	"directory": "./public"
+	// },
 	"observability": {
 		"enabled": true
-	}
+	},
 	/**
 	 * 智能放置
 	 * 文档：https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement
@@ -38,7 +38,18 @@
 	 * 静态资源
 	 * https://developers.cloudflare.com/workers/static-assets/binding/
 	 */
-	// "assets": { "directory": "./public/", "binding": "ASSETS" }
+	"assets": { "directory": "./public/", "binding": "ASSETS" },
+	/**
+	 * KV 命名空间
+	 * https://developers.cloudflare.com/workers/wrangler/configuration/#kv-namespaces
+	 */
+	// "kv_namespaces": [
+	// 	{
+	// 		"binding": "CACHE",
+	// 		"id": "911fc9eb7520405db79c5ceb83b29be7",
+	// 		"preview_id": "31ecff7bc91e4bb395d146f8ac2ab3be"
+	// 	}
+	// ]
 	/**
 	 * 服务绑定（多个 Worker 之间的通信）
 	 * https://developers.cloudflare.com/workers/wrangler/configuration/#service-bindings

@@ -3,9 +3,9 @@
 		/* 访问 https://aka.ms/tsconfig.json 了解更多关于此文件的信息 */
 
     /* 设置生成的 JavaScript 的语言版本并包含兼容的库声明。 */
-		"target": "es2021",
+		"target": "es2022",
     /* 指定一组描述目标运行时环境的捆绑库声明文件。 */
-		"lib": ["es2021"],
+		"lib": ["es2022"],
     /* 指定生成什么 JSX 代码。 */
 		"jsx": "react-jsx",
 

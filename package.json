@@ -10,6 +10,9 @@
 	},
 	"devDependencies": {
 		"typescript": "^5.5.2",
-		"wrangler": "^4.42.1"
+		"wrangler": "^4.42.2"
+	},
+	"dependencies": {
+		"cookie": "^1.0.2"
 	}
 }

@@ -1,15 +1,229 @@
+import { type LanguageRequestBody } from './types';
+import { parse } from 'cookie';
+
+// 静态资源目录名
+const staticDirectoryName = 'static';
+// 路由 json 目录名
+const routesDirectoryName = 'routes';
+// zip 资源目录名
+const downloadsDirectoryName = 'downloads';
+
+// 判断是否在禁止列表中
+const isForbidden = (path: string) => {
+	// 禁止列表
+	const forbiddenList = ['/cdn-cgi/', '/.well-known/'];
+	return forbiddenList.some((prefix) => path.startsWith(prefix));
+};
+
 /**
- * 欢迎使用 Cloudflare Workers！这是一个标准的 Worker 应用程序。
- *
- * - 在终端中运行 `npm run dev` 启动开发服务器
- * - 在浏览器中打开 http://localhost:8787/ 查看你的 Worker 运行情况
- * - 运行 `npm run deploy` 发布你的应用程序
- *
- * 在 `wrangler.jsonc` 中绑定资源到你的 worker。添加绑定后，可以使用 `npm run cf-typegen`
- * 重新生成 `Env` 对象的类型定义。
- *
- * 了解更多信息请访问 https://developers.cloudflare.com/workers
+ * 通用查找资源逻辑：尝试多个路径，返回第一个非 404 的响应
  */
+async function tryFetchStaticAsset(routePaths: string[], origin: string, assets: Fetcher): Promise<Response | null> {
+	for (const routePath of routePaths) {
+		const routeUrl = new URL(routePath, origin);
+		const res = await assets.fetch(routeUrl);
+		if (res.status !== 404) {
+			return res;
+		}
+	}
+	return null;
+}
+
+/**
+ * 处理根路径请求
+ */
+function handleRootPath(url: URL, assets: Fetcher): Promise<Response> {
+	const indexUrl = new URL(`/${staticDirectoryName}/plus/index.html`, url.origin);
+	return assets.fetch(indexUrl);
+}
+
+/**
+ * 处理下载请求
+ */
+function handleDownload(path: string, url: URL, assets: Fetcher): Promise<Response> {
+	const filename = `${path.split('/').at(-2)}.zip`;
+	console.log('filename:', filename);
+	const downloadUrl = new URL(`/${downloadsDirectoryName}/${filename}`, url.origin);
+	return assets.fetch(downloadUrl);
+}
+
+/**
+ * 处理语言切换请求
+ */
+async function handleLanguageSwitch(request: Request, url: URL): Promise<{ response: Response; cookieValue: string | null }> {
+	const bodyJson = (await request.json()) as LanguageRequestBody;
+	console.log('bodyJson:', bodyJson);
+	const referer = request.headers.get('referer');
+	console.log('referer:', referer);
+
+	let response: Response;
+	let cookieValue: string | null = null;
+
+	if (referer) {
+		const refererPath = new URL(referer).pathname;
+		console.log('refererPath:', refererPath);
+		const snippet_lang = bodyJson.snippet_lang;
+		// 303 重定向到 /routes${refererPath}/${snippet_lang}
+		const redirectUrl = new URL(`/${routesDirectoryName}${refererPath}/${snippet_lang}`, url.origin);
+		console.log('redirectUrl:', redirectUrl.toString());
+		response = Response.redirect(redirectUrl.toString(), 303);
+		cookieValue = snippet_lang;
+	} else {
+		response = new Response('Bad Request', { status: 400 });
+	}
+
+	return { response, cookieValue };
+}
+
+/**
+ * 处理直接路由请求
+ */
+function handleDirectRoute(path: string, url: URL, assets: Fetcher): Promise<Response> {
+	console.log('handleDirectRoute:', path);
+	return assets.fetch(new URL(`${path}.json`, url.origin));
+}
+
+/**
+ * 从 snippet_lang 中移除主题段（最后一段）
+ * @returns result: 移除主题段后的 snippet_lang；isRemoved: 是否真正移除
+ */
+function removeThemeFromSnippetLang(snippet_lang: string): { result: string; isRemoved: boolean } {
+	let result = snippet_lang;
+	let isRemoved = false;
+
+	const parts = snippet_lang.split('-');
+	if (parts.length === 3) {
+		const theme = parts.pop();
+		result = snippet_lang.replace(`-${theme}`, '');
+		isRemoved = true;
+	}
+
+	return { result, isRemoved };
+}
+
+/**
+ * 处理 Level 4 路径的路由请求（带语言选择）
+ */
+async function handleLevel4Route(path: string, request: Request, url: URL, assets: Fetcher): Promise<Response | null> {
+	const parsedCookie = parse(request.headers.get('Cookie') || '');
+	console.log('parsedCookie:', parsedCookie);
+	const snippet_lang = parsedCookie.snippet_lang || 'react-v4-system';
+	console.log('snippet_lang:', snippet_lang);
+
+	const { result: snippet_lang_without_theme, isRemoved } = removeThemeFromSnippetLang(snippet_lang);
+	console.log('snippet_lang_without_theme:', snippet_lang_without_theme);
+
+	const routePaths = isRemoved
+		? [`/${routesDirectoryName}${path}/${snippet_lang}.json`, `/${routesDirectoryName}${path}/${snippet_lang_without_theme}.json`]
+		: [`/${routesDirectoryName}${path}/${snippet_lang}.json`, `/${routesDirectoryName}${path}/${snippet_lang}-system.json`]; // 必须考虑后边这种情况，因为 cookie 有可能是不包括主题的那种
+	console.log('routePaths:', routePaths);
+
+	return tryFetchStaticAsset(routePaths, url.origin, assets);
+}
+
+/**
+ * 处理普通路由请求
+ */
+async function handleNormalRoute(path: string, url: URL, assets: Fetcher): Promise<Response | null> {
+	const routePaths = [`/${routesDirectoryName}${path}.json`, `/${routesDirectoryName}${path}/index.json`];
+	return tryFetchStaticAsset(routePaths, url.origin, assets);
+}
+
+/**
+ * 处理 Inertia 请求
+ */
+async function handleInertiaRequest(path: string, request: Request, url: URL, assets: Fetcher): Promise<Response> {
+	console.log('handleInertiaRequest:', path);
+
+	const startTime = performance.now();
+
+	let response: Response | null = null;
+	let cookieValue: string | null = null;
+
+	// 语言切换请求
+	if (path.endsWith('/language')) {
+		const result = await handleLanguageSwitch(request, url);
+		response = result.response;
+		cookieValue = result.cookieValue;
+	}
+	// 直接路由请求
+	else if (path.startsWith(`/${routesDirectoryName}`)) {
+		response = await handleDirectRoute(path, url, assets);
+	}
+	// 普通路由请求
+	else {
+		const pathWithoutPlus = path.replace('/plus/', '');
+		console.log('pathWithoutPlus:', pathWithoutPlus);
+		const pathLevel = pathWithoutPlus.split('/').length;
+		console.log('pathLevel:', pathLevel);
+
+		if (pathLevel === 4) {
+			response = await handleLevel4Route(path, request, url, assets);
+		} else {
+			response = await handleNormalRoute(path, url, assets);
+		}
+		console.log('response:', response?.status);
+	}
+
+	const endTime = performance.now();
+	console.log('Find route times(ms): ', endTime - startTime);
+
+	// 添加 X-Inertia 响应头和 Cookie
+	const newHeaders = new Headers(response!.headers);
+	newHeaders.set('X-Inertia', 'true');
+	if (cookieValue) {
+		newHeaders.set('Set-Cookie', `snippet_lang=${cookieValue}`);
+		console.log('Set-Cookie:', `snippet_lang=${cookieValue}`);
+	}
+
+	return new Response(response!.body, {
+		status: response!.status,
+		statusText: response!.statusText,
+		headers: newHeaders,
+	});
+}
+
+/**
+ * 回源获取资源，并使用 Cloudflare 边缘缓存
+ */
+async function fetchFromOrigin(path: string, url: URL): Promise<Response> {
+	console.log('🔄 开始回源:', path);
+	const startTime = performance.now();
+
+	const originUrl = new URL(`${url.pathname}${url.search}`, 'https://tailwindui.starxg.com');
+	const response = await fetch(originUrl, {
+		cf: {
+			cacheTtl: 2678400, // 缓存 31 天
+			cacheEverything: true,
+		},
+	});
+
+	const endTime = performance.now();
+	console.log('⏱️  回源完成:', path, '耗时:', `${endTime - startTime}ms`, '状态:', response.status);
+
+	const cacheStatus = response.headers.get('cf-cache-status');
+	if (cacheStatus) {
+		console.log('  📦 Cloudflare 缓存状态:', cacheStatus);
+	}
+
+	return response;
+}
+
+/**
+ * 处理普通静态资源请求
+ */
+async function handleStaticRequest(path: string, url: URL, assets: Fetcher): Promise<Response> {
+	// 先尝试从静态资源读取
+	const resUrl = new URL(`/${staticDirectoryName}${path}`, url.origin);
+	let response = await assets.fetch(resUrl);
+
+	// 静态资源中没有，回源并利用 Cloudflare 边缘缓存
+	if (response.status === 404) {
+		response = await fetchFromOrigin(path, url);
+	}
+
+	return response;
+}
 
 export default {
 	/**
@@ -21,13 +235,36 @@ export default {
 	 * @returns 要发送回客户端的响应
 	 */
 	async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-		// 简单的问候响应
-		const greeting = 'Hello, World!';
+		const url = new URL(request.url);
+		const path = url.pathname;
 
-		return new Response(greeting, {
-			headers: {
-				'Content-Type': 'text/plain; charset=utf-8',
-			},
-		});
+		// 特殊路径，提前禁止
+		if (isForbidden(path)) {
+			return new Response('Not Found', { status: 404 });
+		}
+
+		try {
+			// 处理根路径
+			if (path === '/' || path === '') {
+				return handleRootPath(url, env.ASSETS);
+			}
+
+			// 处理下载请求
+			if (path.endsWith(`/${downloadsDirectoryName}`)) {
+				return handleDownload(path, url, env.ASSETS);
+			}
+
+			// 检查是否是 Inertia 请求
+			const inertiaHeader = request.headers.get('X-Inertia');
+
+			if (inertiaHeader === 'true') {
+				return handleInertiaRequest(path, request, url, env.ASSETS);
+			} else {
+				return handleStaticRequest(path, url, env.ASSETS);
+			}
+		} catch (error) {
+			console.error(error);
+			return new Response('Not Found', { status: 404 });
+		}
 	},
 } satisfies ExportedHandler<Env>;
