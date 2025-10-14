@@ -26,12 +26,16 @@
 	 * https://developers.cloudflare.com/workers/runtime-apis/bindings/
 	 */
 	/**
-	 * 环境变量
+	 * 环境变量（用于开发）
 	 * https://developers.cloudflare.com/workers/wrangler/configuration/#environment-variables
 	 */
-	// "vars": { "MY_VARIABLE": "production_value" }
+	"vars": {
+		"ORIGIN_URL": "https://tailwindui.starxg.com"
+	},
 	/**
 	 * 注意：使用机密来存储敏感数据。
+	 * 生产环境请使用以下命令设置密钥：
+	 * npx wrangler secret put ORIGIN_URL
 	 * https://developers.cloudflare.com/workers/configuration/secrets/
 	 */
 	/**

@@ -40,11 +40,29 @@ function handleRootPath(url: URL, assets: Fetcher): Promise<Response> {
 /**
  * 处理下载请求
  */
-function handleDownload(path: string, url: URL, assets: Fetcher): Promise<Response> {
+async function handleDownload(path: string, url: URL, assets: Fetcher, env: Env): Promise<Response> {
 	const filename = `${path.split('/').at(-2)}.zip`;
 	console.log('filename:', filename);
 	const downloadUrl = new URL(`/${downloadsDirectoryName}/${filename}`, url.origin);
-	return assets.fetch(downloadUrl);
+	const response = await assets.fetch(downloadUrl);
+
+	// 如果静态资源中有文件，直接返回并设置正确的响应头
+	if (response.status === 200) {
+		const newHeaders = new Headers(response.headers);
+		newHeaders.set('Content-Type', 'application/zip');
+		newHeaders.set('Content-Disposition', `attachment; filename="${filename}"`);
+
+		return new Response(response.body, {
+			status: response.status,
+			statusText: response.statusText,
+			headers: newHeaders,
+		});
+	}
+
+	// 如果静态资源中没有，直接重定向到源站，让客户端自己去下载
+	// 源站会处理下载，利用 Cloudflare 的 CDN 缓存
+	console.log('📦 静态资源未找到，重定向到源站:', filename);
+	return Response.redirect(`${env.ORIGIN_URL}${path}`, 302);
 }
 
 /**
@@ -113,9 +131,11 @@ async function handleLevel4Route(path: string, request: Request, url: URL, asset
 	const { result: snippet_lang_without_theme, isRemoved } = removeThemeFromSnippetLang(snippet_lang);
 	console.log('snippet_lang_without_theme:', snippet_lang_without_theme);
 
-	const routePaths = isRemoved
-		? [`/${routesDirectoryName}${path}/${snippet_lang}.json`, `/${routesDirectoryName}${path}/${snippet_lang_without_theme}.json`]
-		: [`/${routesDirectoryName}${path}/${snippet_lang}.json`, `/${routesDirectoryName}${path}/${snippet_lang}-system.json`]; // 必须考虑后边这种情况，因为 cookie 有可能是不包括主题的那种
+	const snippet_lang_path = `/${routesDirectoryName}${path}/${snippet_lang}.json`;
+	const snippet_lang_without_theme_path = `/${routesDirectoryName}${path}/${snippet_lang_without_theme}.json`;
+	const snippet_lang_system_path = `/${routesDirectoryName}${path}/${snippet_lang}-system.json`;
+
+	const routePaths = isRemoved ? [snippet_lang_path, snippet_lang_without_theme_path] : [snippet_lang_path, snippet_lang_system_path]; // 必须考虑后边这种情况，因为 cookie 有可能是不包括主题的那种
 	console.log('routePaths:', routePaths);
 
 	return tryFetchStaticAsset(routePaths, url.origin, assets);
@@ -186,11 +206,11 @@ async function handleInertiaRequest(path: string, request: Request, url: URL, as
 /**
  * 回源获取资源，并使用 Cloudflare 边缘缓存
  */
-async function fetchFromOrigin(path: string, url: URL): Promise<Response> {
+async function fetchFromOrigin(path: string, url: URL, env: Env): Promise<Response> {
 	console.log('🔄 开始回源:', path);
 	const startTime = performance.now();
 
-	const originUrl = new URL(`${url.pathname}${url.search}`, 'https://tailwindui.starxg.com');
+	const originUrl = new URL(`${url.pathname}${url.search}`, env.ORIGIN_URL);
 	const response = await fetch(originUrl, {
 		cf: {
 			cacheTtl: 2678400, // 缓存 31 天
@@ -212,14 +232,14 @@ async function fetchFromOrigin(path: string, url: URL): Promise<Response> {
 /**
  * 处理普通静态资源请求
  */
-async function handleStaticRequest(path: string, url: URL, assets: Fetcher): Promise<Response> {
+async function handleStaticRequest(path: string, url: URL, assets: Fetcher, env: Env): Promise<Response> {
 	// 先尝试从静态资源读取
 	const resUrl = new URL(`/${staticDirectoryName}${path}`, url.origin);
 	let response = await assets.fetch(resUrl);
 
 	// 静态资源中没有，回源并利用 Cloudflare 边缘缓存
 	if (response.status === 404) {
-		response = await fetchFromOrigin(path, url);
+		response = await fetchFromOrigin(path, url, env);
 	}
 
 	return response;
@@ -250,8 +270,8 @@ export default {
 			}
 
 			// 处理下载请求
-			if (path.endsWith(`/${downloadsDirectoryName}`)) {
-				return handleDownload(path, url, env.ASSETS);
+			if (path.endsWith('/download')) {
+				return handleDownload(path, url, env.ASSETS, env);
 			}
 
 			// 检查是否是 Inertia 请求
@@ -260,7 +280,7 @@ export default {
 			if (inertiaHeader === 'true') {
 				return handleInertiaRequest(path, request, url, env.ASSETS);
 			} else {
-				return handleStaticRequest(path, url, env.ASSETS);
+				return handleStaticRequest(path, url, env.ASSETS, env);
 			}
 		} catch (error) {
 			console.error(error);
