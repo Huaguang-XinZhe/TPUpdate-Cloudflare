@@ -166,5 +166,8 @@ dist
 !.env.example
 .wrangler/
 
-# 暂时忽略 public 目录
+# 忽略 public 目录
 public/
+
+# 忽略 bak 目录
+bak/

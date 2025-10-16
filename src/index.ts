@@ -1,5 +1,6 @@
 import { type LanguageRequestBody } from './types';
 import { parse } from 'cookie';
+import { isImageRequest, removeThemeFromSnippetLang } from './utils';
 
 // 静态资源目录名
 const staticDirectoryName = 'static';
@@ -99,24 +100,6 @@ async function handleLanguageSwitch(request: Request, url: URL): Promise<{ respo
 function handleDirectRoute(path: string, url: URL, assets: Fetcher): Promise<Response> {
 	console.log('handleDirectRoute:', path);
 	return assets.fetch(new URL(`${path}.json`, url.origin));
-}
-
-/**
- * 从 snippet_lang 中移除主题段（最后一段）
- * @returns result: 移除主题段后的 snippet_lang；isRemoved: 是否真正移除
- */
-function removeThemeFromSnippetLang(snippet_lang: string): { result: string; isRemoved: boolean } {
-	let result = snippet_lang;
-	let isRemoved = false;
-
-	const parts = snippet_lang.split('-');
-	if (parts.length === 3) {
-		const theme = parts.pop();
-		result = snippet_lang.replace(`-${theme}`, '');
-		isRemoved = true;
-	}
-
-	return { result, isRemoved };
 }
 
 /**
@@ -233,6 +216,15 @@ async function fetchFromOrigin(path: string, url: URL, env: Env): Promise<Respon
  * 处理普通静态资源请求
  */
 async function handleStaticRequest(path: string, url: URL, assets: Fetcher, env: Env): Promise<Response> {
+	// 图片请求特殊处理
+	if (isImageRequest(path)) {
+		const imageUrl = new URL(`/${staticDirectoryName}${path}.avif`, url.origin);
+		const imageResponse = await assets.fetch(imageUrl);
+		if (imageResponse.status === 200) {
+			return imageResponse;
+		}
+	}
+
 	// 先尝试从静态资源读取
 	const resUrl = new URL(`/${staticDirectoryName}${path}`, url.origin);
 	let response = await assets.fetch(resUrl);
